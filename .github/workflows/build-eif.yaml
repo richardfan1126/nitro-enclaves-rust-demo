@@ -1,0 +1,44 @@
+---
+name: Build EIF file
+on:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: write
+
+jobs:
+  build_eif_file:
+    name: Build EIF file
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Build EIF
+        id: build-eif
+        uses: richardfan1126/nitro-enclaves-eif-build-action@v1
+        with:
+          docker-build-context-path: enclave
+
+      - id: generate-release-note
+        name: Generate release note
+        run: |
+          # Get EIF measurement
+          RELEASE_NOTE=$(cat ${{ steps.build-eif.outputs.eif-info-path }} | jq '.Measurements')
+
+          echo "RELEASE_NOTE<<EOF" >> "$GITHUB_OUTPUT"
+          echo "${RELEASE_NOTE}" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ${{ steps.build-eif.outputs.eif-file-path }}
+          body: |
+            ```
+            ${{ steps.generate-release-note.outputs.RELEASE_NOTE }}
+            ```

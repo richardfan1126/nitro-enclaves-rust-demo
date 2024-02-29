@@ -1,0 +1,19 @@
+[package]
+name = "nitro-enclaves-rust-demo-enclave"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+aes-gcm = "0.10.3"
+aws-nitro-enclaves-nsm-api = "0.4.0"
+base64 = "0.21.7"
+reqwest = { version= "0.11.24",  default_features = false, features = ["json", "rustls-tls",] }
+libc = "0.2.153"
+rand = "0.8.5"
+rsa = { version = "0.9.6", features = ["sha2",] }
+serde_bytes = "0.11.14"
+tokio = { version = "1.36.0", features = ["macros", "rt-multi-thread", "io-util",] }
+tokio-vsock = "0.5.0"
+serde = "1.0.197"
