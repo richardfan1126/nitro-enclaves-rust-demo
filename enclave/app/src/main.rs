@@ -13,12 +13,13 @@ use encryption::Encryption;
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
 struct GetAttestationReq {
-    nonce: Option<String>,
+    nonce: String,
 }
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
 struct ProcessReq {
+    nonce: String,
     encrypted_payload: String,
 }
 
@@ -28,17 +29,8 @@ fn health_check() -> String {
 }
 
 #[post("/get-attestation", data = "<req>")]
-fn get_attestation(req: Option<Json<GetAttestationReq>>, encryption: &State<Encryption>) -> String {
-    let nonce = match req {
-        Some(req) => {
-            match req.nonce.to_owned() {
-                Some(nonce) => Some(ByteBuf::from(nonce)),
-                None => None
-            }
-        },
-        None => None
-    };
-
+fn get_attestation(req: Json<GetAttestationReq>, encryption: &State<Encryption>) -> String {
+    let nonce = Some(ByteBuf::from(req.nonce.to_owned()));
     let public_key = Some(encryption.get_pub_key_byte());
     let user_data = None;
     
@@ -51,8 +43,16 @@ fn get_attestation(req: Option<Json<GetAttestationReq>>, encryption: &State<Encr
 #[post("/process", data = "<req>")]
 fn process(req: Json<ProcessReq>, encryption: &State<Encryption>) -> String {
     let encrypted_payload = req.encrypted_payload.to_owned();
+    let response_payload = encryption.decrypt(encrypted_payload);
 
-    encryption.decrypt(encrypted_payload)
+    let nonce = Some(ByteBuf::from(req.nonce.to_owned()));
+    let public_key = None;
+    let user_data = Some(ByteBuf::from(response_payload));
+
+    let attestation_doc = get_attestation_doc(public_key, user_data, nonce)
+        .expect("Cannot get attestation document");
+
+    attestation_doc
 }
 
 #[launch]
