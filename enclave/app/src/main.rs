@@ -1,55 +1,45 @@
 mod attestation;
 mod encryption;
-mod http;
 
-use std::io::Write;
-
-use libc;
-use tokio_vsock::{VsockAddr, VsockListener, VsockStream};
+use serde_bytes::ByteBuf;
+use rocket::State;
+use rocket::serde::{Deserialize, json::Json};
 
 use attestation::get_attestation_doc;
 use encryption::Encryption;
-use http::get_encrypted_secret_from_api;
 
-const LISTENING_PORT: u32 = 1000;
+#[macro_use] extern crate rocket;
 
-async fn process(mut socket: VsockStream, encryption: &Encryption) {
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct GetAttestationReq {
+    nonce: Option<String>,
+}
+
+#[post("/get-attestation", data = "<req>")]
+fn get_attestation(req: Option<Json<GetAttestationReq>>, encryption: &State<Encryption>) -> String {
+    let nonce = match req {
+        Some(req) => {
+            match req.nonce.to_owned() {
+                Some(nonce) => Some(ByteBuf::from(nonce)),
+                None => None
+            }
+        },
+        None => None
+    };
+
     let public_key = Some(encryption.get_pub_key_byte());
     let user_data = None;
-    let nonce = None;
     
     let attestation_doc = get_attestation_doc(public_key, user_data, nonce)
         .expect("Cannot get attestation document");
 
-    let encrypted_secret = get_encrypted_secret_from_api(attestation_doc)
-        .await;
-
-    let secret = encryption.decrypt(encrypted_secret);
-
-    let _ = socket.write_all(secret.as_slice());
+    attestation_doc
 }
 
-#[tokio::main]
-async fn main() {
-    let encryption = Encryption::new();
-
-    let listen_port = LISTENING_PORT;
-    let addr = VsockAddr::new(libc::VMADDR_CID_ANY, listen_port);
-    let mut listener = VsockListener::bind(addr)
-        .expect("fail to bind address");
-
-    println!("Listening for connections on port: {}", listen_port);
-
-    loop {
-        let encryption_clone = encryption.clone();
-
-        match listener.accept().await {
-            Ok((socket, _)) => {
-                tokio::spawn(async move {
-                    process(socket, &encryption_clone).await;
-                });
-            },
-            Err(_) => {}
-        };
-    }
+#[launch]
+fn rocket() -> _ {
+    rocket::build()
+        .manage(Encryption::new())
+        .mount("/", routes![get_attestation])
 }

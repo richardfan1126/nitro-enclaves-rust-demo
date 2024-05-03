@@ -5,11 +5,12 @@ set -e
 # Assign local loopback address
 ifconfig lo 127.0.0.1
 
-# Redirect API endpoint to lo
-echo "127.0.0.1    nitro-enclaves-demo.richardfan.xyz" >> /etc/hosts
-
 # Start traffic forwarder
-nohup /usr/bin/socat TCP-LISTEN:443,fork,reuseaddr VSOCK-CONNECT:3:8000 &
+/usr/bin/socat -t 30 VSOCK-LISTEN:1000,fork,reuseaddr TCP:127.0.0.1:8000 &
 
 # Start app
-/app/nitro-enclaves-rust-demo-enclave
+/app/nitro-enclaves-rust-demo-enclave &
+
+# Exit if any process exit
+wait -n
+exit $?
