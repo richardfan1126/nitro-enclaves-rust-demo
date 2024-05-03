@@ -16,6 +16,11 @@ struct GetAttestationReq {
     nonce: Option<String>,
 }
 
+#[get("/health-check")]
+fn health_check() -> String {
+    "".to_string()
+}
+
 #[post("/get-attestation", data = "<req>")]
 fn get_attestation(req: Option<Json<GetAttestationReq>>, encryption: &State<Encryption>) -> String {
     let nonce = match req {
@@ -41,5 +46,6 @@ fn get_attestation(req: Option<Json<GetAttestationReq>>, encryption: &State<Encr
 fn rocket() -> _ {
     rocket::build()
         .manage(Encryption::new())
+        .mount("/", routes![health_check])
         .mount("/", routes![get_attestation])
 }
