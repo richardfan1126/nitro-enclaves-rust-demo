@@ -33,7 +33,7 @@ impl Encryption {
         ByteBuf::from(pub_key_der.as_bytes())
     }
 
-    pub fn decrypt (&self, encrypted_secret: String) -> Vec<u8> {
+    pub fn decrypt (&self, encrypted_secret: String) -> String {
         let parts: Vec<&str> = encrypted_secret.split(":")
             .collect();
 
@@ -54,7 +54,10 @@ impl Encryption {
         let cipher = Aes256Gcm::new_from_slice(&session_key.as_slice())
             .expect("Failed to create cipher");
         
-        cipher.decrypt(Nonce::from_slice(nonce.as_slice()), ciphertext.as_slice())
-            .expect("Failed to decrypt ciphertext")
+        let decrypted_vec = cipher.decrypt(Nonce::from_slice(nonce.as_slice()), ciphertext.as_slice())
+            .expect("Failed to decrypt ciphertext");
+
+        String::from_utf8(decrypted_vec)
+            .expect("Failed to decode ciphertext")
     }
 }
