@@ -1,55 +1,59 @@
 use rand;
 use base64::prelude::*;
-use rsa::{pkcs8::EncodePublicKey, RsaPrivateKey, RsaPublicKey, Oaep, sha2::Sha256};
+use x25519_dalek::{StaticSecret, PublicKey};
 use serde_bytes::ByteBuf;
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use aes_gcm::aead::Aead;
 
 pub struct Encryption {
-    priv_key: RsaPrivateKey,
-    pub_key: RsaPublicKey,
+    secret: StaticSecret,
+    pub_key: PublicKey,
 }
 
 impl Encryption {
     /// Constructor
     pub fn new() -> Encryption {
-        let mut rng = rand::thread_rng();
-        let bits = 4096;
-        let priv_key = RsaPrivateKey::new(&mut rng, bits)
-            .expect("failed to generate a key");
-        let pub_key = RsaPublicKey::from(&priv_key);
+        let rng = rand::thread_rng();
+
+        let secret = StaticSecret::random_from_rng(rng);
+        let pub_key = PublicKey::from(&secret);
 
         Encryption {
-            priv_key: priv_key,
-            pub_key: pub_key,
+            secret: secret,
+            pub_key: pub_key
         }
     }
 
     pub fn get_pub_key_byte (&self) -> ByteBuf {
-        let pub_key_der = self.pub_key
-            .to_public_key_der()
-            .expect("Failed to convert public key into DER format");
-        ByteBuf::from(pub_key_der.as_bytes())
+        ByteBuf::from(self.pub_key.to_bytes())
+    }
+
+    fn get_shared_secret (&self, client_pub_key_bytes: &[u8; 32]) -> ByteBuf {
+        let client_pub_key = PublicKey::from(*client_pub_key_bytes);
+        let shared_secret = self.secret.diffie_hellman(&client_pub_key);
+        ByteBuf::from(shared_secret.to_bytes())
     }
 
     pub fn decrypt (&self, encrypted_secret: String) -> String {
         let parts: Vec<&str> = encrypted_secret.split(":")
             .collect();
 
-        let enc_session_key_b64 = parts[0];
+        let client_pub_key_b64 = parts[0];
         let nonce_b64 = parts[1];
         let ciphertext_b64 = parts[2];
 
-        let enc_session_key = BASE64_STANDARD.decode(enc_session_key_b64)
+        let client_pub_key = BASE64_STANDARD.decode(client_pub_key_b64)
             .expect("Failed to decode enc_session_key");
         let nonce = BASE64_STANDARD.decode(nonce_b64)
             .expect("Failed to decode nonce");
         let ciphertext = BASE64_STANDARD.decode(ciphertext_b64)
             .expect("Failed to decode ciphertext");
 
-        let session_key = self.priv_key
-            .decrypt(Oaep::new::<Sha256>(), enc_session_key.as_slice())
-            .expect("Failed to decrypt session key");
+        let client_pub_key_bytes: [u8; 32] = client_pub_key[..32]
+            .try_into()
+            .expect("Failed to decode client public key");
+
+        let session_key = self.get_shared_secret(&client_pub_key_bytes);
         let cipher = Aes256Gcm::new_from_slice(&session_key.as_slice())
             .expect("Failed to create cipher");
         
