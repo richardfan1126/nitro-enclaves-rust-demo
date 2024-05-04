@@ -74,7 +74,7 @@ fn add_entry(req: Json<AddEntryReq>, encryption: &State<Encryption>, salary: &St
     let encrypted_payload = req.encrypted_payload.to_owned();
     let payload = encryption.decrypt(encrypted_payload);
 
-    let input_salary = payload.parse::<u16>()
+    let input_salary = payload.parse::<u32>()
         .expect("Input is not an integer");
 
     let uuid = salary
