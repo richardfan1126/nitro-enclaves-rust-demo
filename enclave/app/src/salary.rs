@@ -31,4 +31,8 @@ impl Salary {
             None => None
         }
     }
+
+    pub fn clear(&mut self) {
+        self.salary_map.clear();
+    }
 }

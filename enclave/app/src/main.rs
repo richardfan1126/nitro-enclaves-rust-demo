@@ -120,6 +120,16 @@ fn get_position(req: Json<GetPositionReq>, encryption: &State<Encryption>, salar
     })
 }
 
+#[post("/clear")]
+fn clear_record(salary: &State<Mutex<Salary>>) -> String {
+    salary
+        .lock()
+        .expect("Failed to obtain mutex lock")
+        .clear();
+
+    "".to_string()
+}
+
 #[launch]
 fn rocket() -> _ {
     rocket::build()
@@ -129,6 +139,7 @@ fn rocket() -> _ {
             health_check,
             get_attestation,
             add_entry,
-            get_position
+            get_position,
+            clear_record
         ])
 }
