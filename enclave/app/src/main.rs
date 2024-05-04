@@ -5,6 +5,7 @@ mod salary;
 use std::sync::Mutex;
 use serde::Serialize;
 use serde_bytes::ByteBuf;
+use serde_json::json;
 use rocket::State;
 use rocket::serde::{Deserialize, json::Json};
 
@@ -99,13 +100,13 @@ fn get_position(req: Json<GetPositionReq>, encryption: &State<Encryption>, salar
     let encrypted_payload = req.encrypted_payload.to_owned();
     let uuid = encryption.decrypt(encrypted_payload);
 
-    let position = salary
+    let position_and_total = salary
         .lock()
         .expect("Failed to obtain mutex lock")
-        .get_position(uuid);
+        .get_position_and_total(uuid);
 
-    let user_data = match position {
-        Some(position) => Some(ByteBuf::from(position.to_string())),
+    let user_data = match position_and_total {
+        Some(position_and_total) => Some(ByteBuf::from(json!(position_and_total).to_string())),
         None => None
     };
 
