@@ -7,7 +7,8 @@ import requests
 from whaaaaat import prompt
 from termcolor import colored
 
-from attestation_verifier import verify_attestation_doc, get_pub_key, encrypt, get_user_data
+from attestation_doc_helper import verify_attestation_doc, get_pub_key, get_user_data
+from encryption_helper import encrypt
 
 config = configparser.ConfigParser()
 config.read("config.ini")

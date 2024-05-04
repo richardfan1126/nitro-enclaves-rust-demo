@@ -6,7 +6,7 @@ use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use aes_gcm::aead::Aead;
 
 pub struct Encryption {
-    secret: StaticSecret,
+    priv_key: StaticSecret,
     pub_key: PublicKey,
 }
 
@@ -15,11 +15,11 @@ impl Encryption {
     pub fn new() -> Encryption {
         let rng = rand::thread_rng();
 
-        let secret = StaticSecret::random_from_rng(rng);
-        let pub_key = PublicKey::from(&secret);
+        let priv_key = StaticSecret::random_from_rng(rng);
+        let pub_key = PublicKey::from(&priv_key);
 
         Encryption {
-            secret: secret,
+            priv_key: priv_key,
             pub_key: pub_key
         }
     }
@@ -28,14 +28,14 @@ impl Encryption {
         ByteBuf::from(self.pub_key.to_bytes())
     }
 
-    fn get_shared_secret (&self, client_pub_key_bytes: &[u8; 32]) -> ByteBuf {
+    fn get_session_key (&self, client_pub_key_bytes: &[u8; 32]) -> ByteBuf {
         let client_pub_key = PublicKey::from(*client_pub_key_bytes);
-        let shared_secret = self.secret.diffie_hellman(&client_pub_key);
-        ByteBuf::from(shared_secret.to_bytes())
+        let session_key = self.priv_key.diffie_hellman(&client_pub_key);
+        ByteBuf::from(session_key.to_bytes())
     }
 
-    pub fn decrypt (&self, encrypted_secret: String) -> String {
-        let parts: Vec<&str> = encrypted_secret.split(":")
+    pub fn decrypt (&self, encrypted_payload: String) -> String {
+        let parts: Vec<&str> = encrypted_payload.split(":")
             .collect();
 
         let client_pub_key_b64 = parts[0];
@@ -53,7 +53,7 @@ impl Encryption {
             .try_into()
             .expect("Failed to decode client public key");
 
-        let session_key = self.get_shared_secret(&client_pub_key_bytes);
+        let session_key = self.get_session_key(&client_pub_key_bytes);
         let cipher = Aes256Gcm::new_from_slice(&session_key.as_slice())
             .expect("Failed to create cipher");
         
