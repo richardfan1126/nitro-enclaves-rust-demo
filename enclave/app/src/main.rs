@@ -1,12 +1,17 @@
 mod attestation;
 mod encryption;
+mod salary;
 
+use std::sync::Mutex;
+use serde::Serialize;
 use serde_bytes::ByteBuf;
 use rocket::State;
 use rocket::serde::{Deserialize, json::Json};
 
 use attestation::get_attestation_doc;
 use encryption::Encryption;
+
+use salary::Salary;
 
 #[macro_use] extern crate rocket;
 
@@ -16,11 +21,33 @@ struct GetAttestationReq {
     nonce: String,
 }
 
+#[derive(Serialize)]
+struct GetAttestationResponse {
+    attestation_doc: String,
+}
+
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
-struct ProcessReq {
+struct AddEntryReq {
     nonce: String,
     encrypted_payload: String,
+}
+
+#[derive(Serialize)]
+struct AddEntryResponse {
+    attestation_doc: String,
+}
+
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct GetPositionReq {
+    nonce: String,
+    encrypted_payload: String,
+}
+
+#[derive(Serialize)]
+struct GetPositionResponse {
+    attestation_doc: String,
 }
 
 #[get("/health-check")]
@@ -29,7 +56,7 @@ fn health_check() -> String {
 }
 
 #[post("/get-attestation", data = "<req>")]
-fn get_attestation(req: Json<GetAttestationReq>, encryption: &State<Encryption>) -> String {
+fn get_attestation(req: Json<GetAttestationReq>, encryption: &State<Encryption>) -> Json<GetAttestationResponse> {
     let nonce = Some(ByteBuf::from(req.nonce.to_owned()));
     let public_key = Some(encryption.get_pub_key_byte());
     let user_data = None;
@@ -37,29 +64,71 @@ fn get_attestation(req: Json<GetAttestationReq>, encryption: &State<Encryption>)
     let attestation_doc = get_attestation_doc(public_key, user_data, nonce)
         .expect("Cannot get attestation document");
 
-    attestation_doc
+    Json(GetAttestationResponse {
+        attestation_doc: attestation_doc
+    })
 }
 
-#[post("/process", data = "<req>")]
-fn process(req: Json<ProcessReq>, encryption: &State<Encryption>) -> String {
+#[post("/add", data = "<req>")]
+fn add_entry(req: Json<AddEntryReq>, encryption: &State<Encryption>, salary: &State<Mutex<Salary>>) -> Json<AddEntryResponse> {
     let encrypted_payload = req.encrypted_payload.to_owned();
-    let response_payload = encryption.decrypt(encrypted_payload);
+    let payload = encryption.decrypt(encrypted_payload);
+
+    let input_salary = payload.parse::<u16>()
+        .expect("Input is not an integer");
+
+    let uuid = salary
+        .lock()
+        .expect("Failed to obtain mutex lock")
+        .add(input_salary);
 
     let nonce = Some(ByteBuf::from(req.nonce.to_owned()));
     let public_key = None;
-    let user_data = Some(ByteBuf::from(response_payload));
+    let user_data = Some(ByteBuf::from(uuid));
 
     let attestation_doc = get_attestation_doc(public_key, user_data, nonce)
         .expect("Cannot get attestation document");
 
-    attestation_doc
+    Json(AddEntryResponse {
+        attestation_doc: attestation_doc
+    })
+}
+
+#[post("/get-position", data = "<req>")]
+fn get_position(req: Json<GetPositionReq>, encryption: &State<Encryption>, salary: &State<Mutex<Salary>>) -> Json<GetPositionResponse> {
+    let encrypted_payload = req.encrypted_payload.to_owned();
+    let uuid = encryption.decrypt(encrypted_payload);
+
+    let position = salary
+        .lock()
+        .expect("Failed to obtain mutex lock")
+        .get_position(uuid);
+
+    let user_data = match position {
+        Some(position) => Some(ByteBuf::from(position.to_string())),
+        None => None
+    };
+
+    let nonce = Some(ByteBuf::from(req.nonce.to_owned()));
+    let public_key = None;
+
+    let attestation_doc = get_attestation_doc(public_key, user_data, nonce)
+        .expect("Cannot get attestation document");
+
+    Json(GetPositionResponse {
+        attestation_doc: attestation_doc
+    })
 }
 
 #[launch]
 fn rocket() -> _ {
     rocket::build()
         .manage(Encryption::new())
-        .mount("/", routes![health_check])
-        .mount("/", routes![get_attestation])
-        .mount("/", routes![process])
+        .manage(Mutex::new(Salary::new()))
+        .mount("/", routes![
+            health_check,
+            get_attestation,
+            add_entry,
+            get_position
+        ])
 }

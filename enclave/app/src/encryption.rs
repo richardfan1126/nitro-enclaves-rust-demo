@@ -5,7 +5,6 @@ use serde_bytes::ByteBuf;
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use aes_gcm::aead::Aead;
 
-#[derive(Clone)]
 pub struct Encryption {
     priv_key: RsaPrivateKey,
     pub_key: RsaPublicKey,
@@ -15,7 +14,7 @@ impl Encryption {
     /// Constructor
     pub fn new() -> Encryption {
         let mut rng = rand::thread_rng();
-        let bits = 2048;
+        let bits = 4096;
         let priv_key = RsaPrivateKey::new(&mut rng, bits)
             .expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&priv_key);
