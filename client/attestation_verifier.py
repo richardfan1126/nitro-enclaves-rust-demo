@@ -7,11 +7,12 @@ from Crypto.Util.number import long_to_bytes
 from Crypto.Random import get_random_bytes
 from OpenSSL import crypto
 
-from Crypto.Cipher import AES, PKCS1_OAEP
-from Crypto.PublicKey import RSA
-from Crypto.Hash import SHA256
+from Crypto.Cipher import AES
 
-def verify_attestation_doc(attestation_doc, pcrs = {}, root_cert_pem = None, expected_nonce = None):
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+
+def verify_attestation_doc(attestation_doc: bytes, pcrs = {}, root_cert_pem: str = None, expected_nonce: str = None):
     """
     Verify the attestation document
     If invalid, raise an exception
@@ -108,7 +109,7 @@ def verify_attestation_doc(attestation_doc, pcrs = {}, root_cert_pem = None, exp
 
     return
 
-def get_pub_key(attestation_doc):
+def get_pub_key(attestation_doc: bytes) -> X25519PublicKey:
     """
     Extract enclave public key from attestation document
     """
@@ -122,19 +123,22 @@ def get_pub_key(attestation_doc):
 
     # Get the public key from attestation document
     public_key_byte = doc_obj['public_key']
-    return RSA.import_key(public_key_byte)
+    return X25519PublicKey.from_public_bytes(public_key_byte)
 
-def encrypt(public_key, plaintext):
+def encrypt(enclave_public_key: X25519PublicKey, plaintext: str) -> str:
     """
-    Encrypt message using public key in attestation document
+    Encrypt message using ECDH and the public key from attestation document
     """
 
-    # Generate a random session for data encryption
-    session_key = get_random_bytes(32)
+    # Generate a random ECDH secret
+    my_private_key = X25519PrivateKey.generate()
 
-    # Encrypt the session key with the public RSA key
-    cipher_rsa = PKCS1_OAEP.new(public_key, SHA256)
-    enc_session_key = cipher_rsa.encrypt(session_key)
+    # Get my public key
+    my_public_key = my_private_key.public_key()
+    my_public_key_bytes = my_public_key.public_bytes(Encoding.Raw, PublicFormat.Raw)
+
+    # Generate a session key using my private key and enclave's public key
+    session_key = my_private_key.exchange(enclave_public_key)
 
     # Encrypt the data with the AES session key
     nonce = get_random_bytes(12)
@@ -143,12 +147,12 @@ def encrypt(public_key, plaintext):
 
     # Return the encrypted session key, nonce, tag and ciphertext
     return "{}:{}:{}".format(
-        base64.b64encode(enc_session_key).decode(),
+        base64.b64encode(my_public_key_bytes).decode(),
         base64.b64encode(cipher_aes.nonce).decode(),
         base64.b64encode(ciphertext + digest).decode(),
     )
 
-def get_user_data(attestation_doc):
+def get_user_data(attestation_doc: bytes) -> str:
     """
     Extract user data from attestation document
     """
