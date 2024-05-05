@@ -2,6 +2,7 @@ import configparser
 import base64
 import random
 import string
+import json
 
 import requests
 from whaaaaat import prompt
@@ -14,20 +15,20 @@ config = configparser.ConfigParser()
 config.read("config.ini")
 
 PCR0 = config['default']['PCR0']
-DOMAIN_NAME = config['default']['DomainName']
+ENCLAVE_ENDPOINT = config['default']['EnclaveEndpoint']
 
 def generate_nonce():
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k = 8))
 
 def get_attestation(nonce):
-    r = requests.post(f"http://{DOMAIN_NAME}/get-attestation", json = {
+    r = requests.post(f"http://{ENCLAVE_ENDPOINT}/get-attestation", json = {
         "nonce": nonce
     })
 
     return r.json()['attestation_doc']
 
 def send_request(url, encrypted_payload, nonce):
-    r = requests.post(f"http://{DOMAIN_NAME}/{url}", json = {
+    r = requests.post(f"http://{ENCLAVE_ENDPOINT}/{url}", json = {
         "encrypted_payload": encrypted_payload,
         "nonce": nonce
     })
@@ -35,10 +36,9 @@ def send_request(url, encrypted_payload, nonce):
     return r.json()['attestation_doc']
 
 def clear_records():
-    requests.post(f"http://{DOMAIN_NAME}/clear")
+    requests.post(f"http://{ENCLAVE_ENDPOINT}/clear")
 
 def main():
-
     menu_question = [
         {
             'type': 'list',
@@ -130,10 +130,11 @@ def main():
 
             response_attestation = base64.b64decode(response_attestation_b64)
             verify_attestation_doc(response_attestation, pcrs = pcrs, root_cert_pem = root_cert_pem, expected_nonce = nonce)
-            position = get_user_data(response_attestation)
+            position_and_total_json = get_user_data(response_attestation)
 
-            
-            print("\n\n" + colored("Your salary is ranked No.", "light_blue") + colored(f"{position}", "light_blue", attrs=["bold"]) + "\n\n")
+            position_and_total = json.loads(position_and_total_json)
+
+            print("\n\n" + colored("Your salary is ranked ", "light_blue") + colored(f"{position_and_total['position']}/{position_and_total['total']}", "light_blue", attrs=["bold"]) + "\n\n")
             
         elif option == "Clear records":
             clear_records()
