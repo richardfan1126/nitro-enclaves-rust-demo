@@ -10,11 +10,6 @@ pub struct Encryption {
     pub_key: PublicKey,
 }
 
-pub struct PlaintextAndSessionKey {
-    pub plaintext: String,
-    pub session_key: ByteBuf
-}
-
 impl Encryption {
     /// Constructor
     pub fn new() -> Encryption {
@@ -24,8 +19,8 @@ impl Encryption {
         let pub_key = PublicKey::from(&priv_key);
 
         Encryption {
-            priv_key: priv_key,
-            pub_key: pub_key
+            priv_key,
+            pub_key
         }
     }
 
@@ -33,48 +28,42 @@ impl Encryption {
         ByteBuf::from(self.pub_key.to_bytes())
     }
 
-    fn get_session_key (&self, client_pub_key_bytes: &[u8; 32]) -> ByteBuf {
-        let client_pub_key = PublicKey::from(*client_pub_key_bytes);
-        let session_key = self.priv_key.diffie_hellman(&client_pub_key);
-        ByteBuf::from(session_key.to_bytes())
-    }
-
-    pub fn decrypt (&self, encrypted_payload: String) -> PlaintextAndSessionKey {
-        let parts: Vec<&str> = encrypted_payload.split(":")
-            .collect();
-
-        let client_pub_key_b64 = parts[0];
-        let nonce_b64 = parts[1];
-        let ciphertext_b64 = parts[2];
-
+    pub fn get_session_key (&self, client_pub_key_b64: String) -> ByteBuf {
         let client_pub_key = BASE64_STANDARD.decode(client_pub_key_b64)
-            .expect("Failed to decode enc_session_key");
-        let nonce = BASE64_STANDARD.decode(nonce_b64)
-            .expect("Failed to decode nonce");
-        let ciphertext = BASE64_STANDARD.decode(ciphertext_b64)
-            .expect("Failed to decode ciphertext");
+            .expect("Failed to decode client public key");
 
         let client_pub_key_bytes: [u8; 32] = client_pub_key[..32]
             .try_into()
             .expect("Failed to decode client public key");
 
-        let session_key = self.get_session_key(&client_pub_key_bytes);
+        let client_pub_key = PublicKey::from(client_pub_key_bytes);
+        let session_key = self.priv_key.diffie_hellman(&client_pub_key);
+        ByteBuf::from(session_key.to_bytes())
+    }
+
+    pub fn decrypt (&self, encrypted_payload: String, session_key: &ByteBuf) -> String {
+        let parts: Vec<&str> = encrypted_payload.split(":")
+            .collect();
+
+        let nonce_b64 = parts[0];
+        let ciphertext_b64 = parts[1];
+
+        let nonce = BASE64_STANDARD.decode(nonce_b64)
+            .expect("Failed to decode nonce");
+        let ciphertext = BASE64_STANDARD.decode(ciphertext_b64)
+            .expect("Failed to decode ciphertext");
+
         let cipher = Aes256Gcm::new_from_slice(&session_key.as_slice())
             .expect("Failed to create cipher");
         
         let decrypted_vec = cipher.decrypt(Nonce::from_slice(nonce.as_slice()), ciphertext.as_slice())
             .expect("Failed to decrypt ciphertext");
 
-        let plaintext = String::from_utf8(decrypted_vec)
-            .expect("Failed to decode ciphertext");
-
-        PlaintextAndSessionKey {
-            plaintext,
-            session_key
-        }
+        String::from_utf8(decrypted_vec)
+            .expect("Failed to decode ciphertext")
     }
 
-    pub fn encrypt (&self, plaintext: String, session_key: ByteBuf) -> String {
+    pub fn encrypt (&self, plaintext: String, session_key: &ByteBuf) -> String {
         let rng = rand::thread_rng();
 
         let nonce = Aes256Gcm::generate_nonce(rng);
