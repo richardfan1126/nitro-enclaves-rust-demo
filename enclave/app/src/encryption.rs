@@ -41,7 +41,7 @@ impl Encryption {
         ByteBuf::from(session_key.to_bytes())
     }
 
-    pub fn decrypt (&self, encrypted_payload: String, session_key: &ByteBuf) -> String {
+    pub fn decrypt (encrypted_payload: String, session_key: &ByteBuf) -> String {
         let parts: Vec<&str> = encrypted_payload.split(":")
             .collect();
 
@@ -63,7 +63,7 @@ impl Encryption {
             .expect("Failed to decode ciphertext")
     }
 
-    pub fn encrypt (&self, plaintext: String, session_key: &ByteBuf) -> String {
+    pub fn encrypt (plaintext: String, session_key: &ByteBuf) -> String {
         let rng = rand::thread_rng();
 
         let nonce = Aes256Gcm::generate_nonce(rng);

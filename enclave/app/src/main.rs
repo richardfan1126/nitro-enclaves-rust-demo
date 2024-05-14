@@ -78,7 +78,7 @@ fn add_entry(req: Json<AddEntryReq>, encryption: &State<Encryption>, salary: &St
     let session_key = encryption.get_session_key(client_pub_key_b64);
 
     let encrypted_payload = req.encrypted_payload.to_owned();
-    let payload = encryption.decrypt(encrypted_payload, &session_key);
+    let payload = Encryption::decrypt(encrypted_payload, &session_key);
 
     let input_salary = payload.parse::<u32>()
         .expect("Input is not an integer");
@@ -88,10 +88,10 @@ fn add_entry(req: Json<AddEntryReq>, encryption: &State<Encryption>, salary: &St
         .expect("Failed to obtain mutex lock")
         .add(input_salary);
 
-    let response = encryption.encrypt(uuid, &session_key);
+    let response = Encryption::encrypt(uuid, &session_key);
 
     let encrypted_nonce = req.encrypted_nonce.to_owned();
-    let nonce = Some(ByteBuf::from(encryption.decrypt(encrypted_nonce, &session_key)));
+    let nonce = Some(ByteBuf::from(Encryption::decrypt(encrypted_nonce, &session_key)));
 
     let public_key = None;
     let user_data = Some(ByteBuf::from(response));
@@ -110,7 +110,7 @@ fn get_position(req: Json<GetPositionReq>, encryption: &State<Encryption>, salar
     let session_key = encryption.get_session_key(client_pub_key_b64);
 
     let encrypted_payload = req.encrypted_payload.to_owned();
-    let uuid = encryption.decrypt(encrypted_payload, &session_key);
+    let uuid = Encryption::decrypt(encrypted_payload, &session_key);
 
     let position_and_total = salary
         .lock()
@@ -119,7 +119,7 @@ fn get_position(req: Json<GetPositionReq>, encryption: &State<Encryption>, salar
 
     let response = match position_and_total {
         Some(position_and_total) => {
-            Some(encryption.encrypt(json!(position_and_total).to_string(), &session_key))
+            Some(Encryption::encrypt(json!(position_and_total).to_string(), &session_key))
         },
         None => None
     };
@@ -130,7 +130,7 @@ fn get_position(req: Json<GetPositionReq>, encryption: &State<Encryption>, salar
     };
 
     let encrypted_nonce = req.encrypted_nonce.to_owned();
-    let nonce = Some(ByteBuf::from(encryption.decrypt(encrypted_nonce, &session_key)));
+    let nonce = Some(ByteBuf::from(Encryption::decrypt(encrypted_nonce, &session_key)));
     
     let public_key = None;
 
