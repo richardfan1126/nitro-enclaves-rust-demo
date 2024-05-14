@@ -82,9 +82,12 @@ impl Encryption {
         let cipher = Aes256Gcm::new_from_slice(&session_key.as_slice())
             .expect("Failed to create cipher");
         
-        let encrypted_vec = cipher.encrypt(Nonce::from_slice(nonce.as_slice()), plaintext.as_bytes())
+        let ciphertext = cipher.encrypt(Nonce::from_slice(nonce.as_slice()), plaintext.as_bytes())
             .expect("Failed to encrypt plaintext");
 
-        BASE64_STANDARD.encode(encrypted_vec)
+        let ciphertext_b64 = BASE64_STANDARD.encode(ciphertext);
+        let nonce_b64 = BASE64_STANDARD.encode(nonce);
+
+        format!("{}:{}", nonce_b64, ciphertext_b64)
     }
 }
