@@ -73,7 +73,10 @@ fn get_attestation(req: Json<GetAttestationReq>, encryption: &State<Encryption>)
 #[post("/add", data = "<req>")]
 fn add_entry(req: Json<AddEntryReq>, encryption: &State<Encryption>, salary: &State<Mutex<Salary>>) -> Json<AddEntryResponse> {
     let encrypted_payload = req.encrypted_payload.to_owned();
-    let payload = encryption.decrypt(encrypted_payload);
+    let plaintext_and_session_key = encryption.decrypt(encrypted_payload);
+
+    let payload = plaintext_and_session_key.plaintext;
+    let session_key = plaintext_and_session_key.session_key;
 
     let input_salary = payload.parse::<u32>()
         .expect("Input is not an integer");
@@ -83,9 +86,11 @@ fn add_entry(req: Json<AddEntryReq>, encryption: &State<Encryption>, salary: &St
         .expect("Failed to obtain mutex lock")
         .add(input_salary);
 
+    let response = encryption.encrypt(uuid, session_key);
+
     let nonce = Some(ByteBuf::from(req.nonce.to_owned()));
     let public_key = None;
-    let user_data = Some(ByteBuf::from(uuid));
+    let user_data = Some(ByteBuf::from(response));
 
     let attestation_doc = get_attestation_doc(public_key, user_data, nonce)
         .expect("Cannot get attestation document");
@@ -98,15 +103,25 @@ fn add_entry(req: Json<AddEntryReq>, encryption: &State<Encryption>, salary: &St
 #[post("/get-position", data = "<req>")]
 fn get_position(req: Json<GetPositionReq>, encryption: &State<Encryption>, salary: &State<Mutex<Salary>>) -> Json<GetPositionResponse> {
     let encrypted_payload = req.encrypted_payload.to_owned();
-    let uuid = encryption.decrypt(encrypted_payload);
+    let plaintext_and_session_key = encryption.decrypt(encrypted_payload);
+
+    let uuid = plaintext_and_session_key.plaintext;
+    let session_key = plaintext_and_session_key.session_key;
 
     let position_and_total = salary
         .lock()
         .expect("Failed to obtain mutex lock")
         .get_position_and_total(uuid);
 
-    let user_data = match position_and_total {
-        Some(position_and_total) => Some(ByteBuf::from(json!(position_and_total).to_string())),
+    let response = match position_and_total {
+        Some(position_and_total) => {
+            Some(encryption.encrypt(json!(position_and_total).to_string(), session_key))
+        },
+        None => None
+    };
+
+    let user_data = match response {
+        Some(response) => Some(ByteBuf::from(response)),
         None => None
     };
 

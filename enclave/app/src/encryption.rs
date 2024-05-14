@@ -2,12 +2,17 @@ use rand;
 use base64::prelude::*;
 use x25519_dalek::{StaticSecret, PublicKey};
 use serde_bytes::ByteBuf;
-use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
+use aes_gcm::{AeadCore, Aes256Gcm, KeyInit, Nonce};
 use aes_gcm::aead::Aead;
 
 pub struct Encryption {
     priv_key: StaticSecret,
     pub_key: PublicKey,
+}
+
+pub struct PlaintextAndSessionKey {
+    pub plaintext: String,
+    pub session_key: ByteBuf
 }
 
 impl Encryption {
@@ -34,7 +39,7 @@ impl Encryption {
         ByteBuf::from(session_key.to_bytes())
     }
 
-    pub fn decrypt (&self, encrypted_payload: String) -> String {
+    pub fn decrypt (&self, encrypted_payload: String) -> PlaintextAndSessionKey {
         let parts: Vec<&str> = encrypted_payload.split(":")
             .collect();
 
@@ -60,7 +65,26 @@ impl Encryption {
         let decrypted_vec = cipher.decrypt(Nonce::from_slice(nonce.as_slice()), ciphertext.as_slice())
             .expect("Failed to decrypt ciphertext");
 
-        String::from_utf8(decrypted_vec)
-            .expect("Failed to decode ciphertext")
+        let plaintext = String::from_utf8(decrypted_vec)
+            .expect("Failed to decode ciphertext");
+
+        PlaintextAndSessionKey {
+            plaintext,
+            session_key
+        }
+    }
+
+    pub fn encrypt (&self, plaintext: String, session_key: ByteBuf) -> String {
+        let rng = rand::thread_rng();
+
+        let nonce = Aes256Gcm::generate_nonce(rng);
+
+        let cipher = Aes256Gcm::new_from_slice(&session_key.as_slice())
+            .expect("Failed to create cipher");
+        
+        let encrypted_vec = cipher.encrypt(Nonce::from_slice(nonce.as_slice()), plaintext.as_bytes())
+            .expect("Failed to encrypt plaintext");
+
+        BASE64_STANDARD.encode(encrypted_vec)
     }
 }
