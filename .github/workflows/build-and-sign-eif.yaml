@@ -15,35 +15,39 @@ permissions:
   attestations: write
 
 jobs:
-  build_and_sign_eif:
-    name: Build and sign EIF
-    runs-on: ubuntu-latest
+  # build_and_sign_eif:
+  #   name: Build and sign EIF
+  #   runs-on: ubuntu-latest
 
-    outputs:
-      ghcr-artifact-path: ${{ steps.build-eif.outputs.ghcr-artifact-path }}
-      ghcr-artifact-digest: ${{ steps.build-eif.outputs.ghcr-artifact-digest }}
+  #   outputs:
+  #     ghcr-artifact-path: ${{ steps.build-eif.outputs.ghcr-artifact-path }}
+  #     ghcr-artifact-digest: ${{ steps.build-eif.outputs.ghcr-artifact-digest }}
 
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Check out repository code
+  #       uses: actions/checkout@v4
 
-      - name: Build EIF
-        id: build-eif
-        uses: richardfan1126/nitro-enclaves-eif-build-action@main
-        with:
-          docker-build-context-path: enclave
-          enable-ghcr-push: true
-          enable-artifact-sign: true
-          eif-file-name: enclave.eif
-          eif-info-file-name: enclave-info.json
-          artifact-tag: ${{ github.sha }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Build EIF
+  #       id: build-eif
+  #       uses: richardfan1126/nitro-enclaves-eif-build-action@main
+  #       with:
+  #         docker-build-context-path: enclave
+  #         enable-ghcr-push: true
+  #         enable-artifact-sign: true
+  #         eif-file-name: enclave.eif
+  #         eif-info-file-name: enclave-info.json
+  #         artifact-tag: ${{ github.sha }}
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
 
   github_attest:
-    needs: 
-      - build_and_sign_eif
+    # needs: 
+    #   - build_and_sign_eif
     uses: richardfan1126/github-attest-slsa3-workflow/.github/workflows/github-attestation.yml@main
+    permissions:
+      packages: write
+      id-token: write
+      attestations: write
     with:
-      subject-name: ${{ needs.build_and_sign_eif.outputs.ghcr-artifact-path }}
-      subject-digest: "sha256:${{ needs.build_and_sign_eif.outputs.ghcr-artifact-digest }}"
+      subject-name: ghcr.io/richardfan1126/nitro-enclaves-rust-demo:7203a2f4c1e00e2d292545d0e4a3ac770900c366@sha256:8a67545743486fb9c2dc5252fd5009311a5531386cd3e746a3490bef8846cf5e
+      subject-digest: sha256:8a67545743486fb9c2dc5252fd5009311a5531386cd3e746a3490bef8846cf5e
       push-to-registry: true
