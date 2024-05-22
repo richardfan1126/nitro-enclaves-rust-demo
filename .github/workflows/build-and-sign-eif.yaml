@@ -42,10 +42,6 @@ jobs:
   github_attest:
     needs: 
       - build_and_sign_eif
-    permissions:
-      actions: read
-      id-token: write
-      packages: write
     uses: richardfan1126/github-attest-slsa3-workflow/.github/workflows/github-attestation.yml@main
     with:
       subject-name: ${{ needs.build_and_sign_eif.outputs.ghcr-artifact-path }}
