@@ -51,3 +51,4 @@ jobs:
       subject-name: ghcr.io/richardfan1126/nitro-enclaves-rust-demo:7203a2f4c1e00e2d292545d0e4a3ac770900c366@sha256:8a67545743486fb9c2dc5252fd5009311a5531386cd3e746a3490bef8846cf5e
       subject-digest: sha256:8a67545743486fb9c2dc5252fd5009311a5531386cd3e746a3490bef8846cf5e
       push-to-registry: true
+      github-token: ${{ github.token }}
